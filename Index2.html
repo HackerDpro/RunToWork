@@ -1,0 +1,432 @@
+<!-- Previous game version -->
+
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Run To Work — Cape Runner (AZERTY + Mobile Mode)</title>
+<style>
+  :root{
+    --bg-top:#cfeeff; --bg-bottom:#86c8ea;
+    --panel: rgba(6,10,14,0.82);
+    --accent: #17b07a;
+    --muted: #cfe9e3;
+    --ui-btn-bg: rgba(10,10,12,0.6);
+    --ui-btn-fg: #fff;
+  }
+  html,body{height:100%;margin:0;font-family:Inter,system-ui,Segoe UI,Roboto,Arial;background:linear-gradient(var(--bg-top),var(--bg-bottom));color:#fff}
+  .wrap{max-width:1200px;margin:12px auto;padding:12px}
+  header{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px}
+  .title{font-weight:800;font-size:20px}
+  .subtitle{font-size:13px;color:var(--muted);margin-top:4px}
+  .controls{display:flex;gap:8px;align-items:center}
+  button.btn{background:var(--accent);border:none;padding:8px 12px;border-radius:8px;color:#042;cursor:pointer;font-weight:700}
+  button.ghost{background:transparent;border:1px solid rgba(255,255,255,0.06);color:var(--muted);padding:7px;border-radius:8px;cursor:pointer}
+  #main{display:flex;gap:12px}
+  #stage{flex:1;background:rgba(255,255,255,0.02);padding:10px;border-radius:12px;position:relative}
+  canvas#game{display:block;width:100%;height:auto;border-radius:10px;background:linear-gradient(#87ceeb,#63b8e3);box-shadow:inset 0 -30px 80px rgba(0,0,0,0.18)}
+  #sidebar{width:320px;background:var(--panel);padding:12px;border-radius:10px;display:flex;flex-direction:column;gap:10px}
+  .small{font-size:13px;color:var(--muted)}
+  .muted{color:var(--muted)}
+  .levels{display:grid;grid-template-columns:repeat(5,1fr);gap:6px}
+  .levelBtn{background:#222;padding:8px;border-radius:6px;text-align:center;cursor:pointer;color:#bbb}
+  .levelBtn.unlocked{background:#154f2f;color:#cde}
+  .char{background:#0f1416;padding:8px;border-radius:8px;display:flex;align-items:center;gap:8px;cursor:pointer}
+  footer{margin-top:14px;color:var(--muted);font-size:13px;text-align:center}
+  .modal{position:fixed;left:0;top:0;right:0;bottom:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.55);z-index:999}
+  .modal .box{background:#071014;padding:18px;border-radius:10px;min-width:320px;color:#ddf;box-shadow:0 18px 60px rgba(0,0,0,0.6)}
+  .center{display:flex;align-items:center;justify-content:center}
+  .note{font-size:12px;color:#cfe9e3}
+
+  /* Canvas overlay UI */
+  .canvas-overlay { position:absolute; left:0; top:0; right:0; bottom:0; pointer-events:none; }
+  .fs-btn { position:absolute; right:12px; top:12px; z-index:60; pointer-events:auto;
+           background:var(--ui-btn-bg); color:var(--ui-btn-fg); border-radius:8px; padding:8px 10px; border:1px solid rgba(255,255,255,0.06); cursor:pointer; }
+  .mobileMode-btn { position:absolute; left:12px; top:12px; z-index:60; pointer-events:auto;
+           background:var(--ui-btn-bg); color:var(--ui-btn-fg); border-radius:8px; padding:8px 10px; border:1px solid rgba(255,255,255,0.06); cursor:pointer; }
+
+  /* mobile top-right directional pad (appears only when mobileMode active and canvas fullscreen) */
+  .mobile-pad { position:absolute; right:12px; top:12px; z-index:60; display:none; pointer-events:auto; gap:6px; }
+  .pad-row { display:flex; justify-content:center; gap:6px; }
+  .pad-btn { background:var(--ui-btn-bg); color:var(--ui-btn-fg); border-radius:8px; padding:10px 12px; border:1px solid rgba(255,255,255,0.06); font-weight:800; min-width:44px; text-align:center; }
+  .pad-btn:active { transform:translateY(2px); }
+
+  /* mobile controls bottom (fallback) */
+  .mobile-controls { position:absolute; left:0; right:0; bottom:16px; display:flex; justify-content:space-between; padding:8px 16px; gap:8px; pointer-events:none; z-index:40; }
+  .mobile-left, .mobile-right { display:flex; gap:8px; pointer-events:auto; }
+  .mobile-btn { background:var(--ui-btn-bg); color:var(--ui-btn-fg); border-radius:10px; padding:12px 14px; border:1px solid rgba(255,255,255,0.06); font-weight:700; min-width:56px; text-align:center; opacity:0.95; }
+  .mobile-btn:active { transform:translateY(2px); }
+
+  @media (max-width:820px) {
+    .mobile-controls { pointer-events:auto; display:flex; }
+  }
+  @media (min-width:821px){
+    .mobile-controls { display:none; }
+  }
+
+  @media (max-width:1000px){
+    #main{flex-direction:column}
+    #sidebar{width:100%}
+  }
+  .mobile-pad[aria-visible="true"]{ display:flex; flex-direction:column; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <div class="title">Run To Work — Cape Runner</div>
+      <div class="subtitle">AZERTY keys + Mobile Mode (top-right pad in fullscreen)</div>
+    </div>
+    <div class="controls">
+      <div id="levelInfo" class="small">Level 1 • ★0</div>
+      <button id="startBtn" class="btn">Start</button>
+      <button id="mobileModeToggle" class="ghost">Mobile Mode</button>
+      <button id="levelsOpen" class="ghost">Levels</button>
+      <button id="helpBtn" class="ghost">Help</button>
+    </div>
+  </header>
+
+  <div id="main">
+    <section id="stage">
+      <canvas id="game" width="1100" height="700" aria-label="Run To Work game"></canvas>
+
+      <div class="canvas-overlay" id="canvasOverlay">
+        <button id="canvasFullBtn" class="fs-btn" title="Fullscreen (canvas only)">⤢ Fullscreen</button>
+        <button id="mobileModeBtn" class="mobileMode-btn" title="Toggle Mobile Mode">📱 Mobile Mode</button>
+
+        <!-- top-right pad (shown in mobile mode while canvas fullscreen) -->
+        <div id="mobilePad" class="mobile-pad" aria-visible="false" role="group" aria-label="Mobile directional pad">
+          <div class="pad-row"><div id="padUp" class="pad-btn">▲</div></div>
+          <div class="pad-row"><div id="padLeft" class="pad-btn">◀</div><div style="width:8px"></div><div id="padRight" class="pad-btn">▶</div></div>
+          <div class="pad-row"><div id="padDown" class="pad-btn">▼</div></div>
+        </div>
+
+        <!-- fallback bottom mobile controls -->
+        <div class="mobile-controls" id="mobileControls" aria-hidden="true">
+          <div class="mobile-left">
+            <button id="btnLeft" class="mobile-btn" aria-label="Move left">◀</button>
+            <button id="btnRight" class="mobile-btn" aria-label="Move right">▶</button>
+          </div>
+          <div style="display:flex;gap:8px" class="mobile-right">
+            <button id="btnFly" class="mobile-btn" aria-label="Fly / Up">🦸 Fly</button>
+            <button id="btnCrouch" class="mobile-btn" aria-label="Crouch / Down">↡ Crouch</button>
+          </div>
+        </div>
+
+      </div>
+
+      <div style="display:flex;justify-content:space-between;margin-top:8px">
+        <div class="small muted">Keyboard (AZERTY friendly): Q = left, D = right, Z = fly/up, S = crouch/down (also arrows & WASD supported)</div>
+        <div style="display:flex;gap:8px">
+          <button id="pauseBtn" class="ghost">Pause</button>
+        </div>
+      </div>
+    </section>
+
+    <aside id="sidebar">
+      <div>
+        <div style="font-weight:800" id="sideLevel">Level 1</div>
+        <div class="small muted" id="sideProgress">Progress: 0%</div>
+      </div>
+
+      <div>
+        <div style="font-weight:700">Unlocked Characters</div>
+        <div id="chars" style="display:flex;flex-direction:column;gap:8px;max-height:240px;overflow:auto"></div>
+      </div>
+
+      <div>
+        <div style="font-weight:700">Quick Links</div>
+        <div class="small muted" style="display:flex;flex-direction:column;gap:6px">
+          <a href="https://developer.mozilla.org/en-US/docs/Games" target="_blank" class="muted">MDN — Web Games</a>
+          <a href="https://itch.io" target="_blank" class="muted">itch.io</a>
+          <a href="mailto:you@example.com" class="muted">Report feedback</a>
+        </div>
+      </div>
+
+      <div style="margin-top:auto" class="small muted">Saved locally. Clear browser data to reset progress.</div>
+    </aside>
+  </div>
+
+  <footer>Mobile Mode opens canvas-only fullscreen and shows the top-right directional pad; exit fullscreen or press Mobile Mode again to close it.</footer>
+</div>
+
+<!-- End modal -->
+<div id="endModal" class="modal" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="box center" style="flex-direction:column;gap:10px;min-width:360px">
+    <div id="endTitle" style="font-weight:800;font-size:20px">Level Complete</div>
+    <div id="endStars" class="small">You earned ★★</div>
+    <div id="endReason" class="note"></div>
+    <div style="display:flex;gap:8px;margin-top:6px">
+      <button id="nextBtn" class="btn">Next Level</button>
+      <button id="retryBtn" class="btn">Retry</button>
+      <button id="openLevelsBtn" class="ghost">Level Select</button>
+    </div>
+  </div>
+</div>
+
+<!-- Levels modal -->
+<div id="levelsModal" class="modal" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="box">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div style="font-weight:800">Select Level</div>
+      <button id="closeLevels" class="ghost">Close</button>
+    </div>
+    <div style="margin-top:10px" id="levelsGrid" class="levels"></div>
+  </div>
+</div>
+
+<!-- Help -->
+<div id="helpModal" class="modal" role="dialog" aria-modal="true" aria-hidden="true">
+  <div class="box">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div style="font-weight:800">How to play</div>
+      <button id="closeHelp" class="ghost">Close</button>
+    </div>
+    <div style="margin-top:10px" class="small muted">
+      <p>Three positions: <b>Fly, Neutral, Crouch</b>. An obstacle has exactly <b>one deadly position</b>. If you're in that position when it reaches you, you die. The other two positions are safe.</p>
+      <p>Controls:</p>
+      <ul>
+        <li>Desktop AZERTY: <b>Z</b>=Fly, <b>S</b>=Crouch, <b>Q</b>=Left, <b>D</b>=Right. Arrow keys and WASD are supported too.</li>
+        <li>Mobile Mode: press <b>Mobile Mode</b> (or the Mobile icon) to go canvas-fullscreen and show top-right directional pad (Up/Down/Left/Right).</li>
+      </ul>
+      <p>Levels are longer now and obstacles vary more so you can't simply stay in one position and win.</p>
+    </div>
+  </div>
+</div>
+
+<script>
+/* Final updated version with:
+   - AZERTY keyboard mapping (Z/Q/S/D) + arrows + WASD
+   - Mobile Mode toggle: enters canvas fullscreen and shows top-right pad (Up/Down/Left/Right)
+   - Levels are twice as long (less chance to exploit)
+   - Obstacle selection avoids long repetition of same deadly position
+   - All previous features retained
+*/
+
+/* ===== CONFIG ===== */
+const TOTAL_LEVELS = 100;
+const CANVAS_W = 1100, CANVAS_H = 700;
+const LANE_WORLD_X = [-1.2, 0, 1.2];
+const SPAWN_Z_MIN = 900, SPAWN_Z_MAX = 1500;
+const PLAYER_Z = 40;
+const PERSPECTIVE_SCALE = 900;
+const STORAGE_KEY = 'runToWork_azerty_mobile_v2';
+
+const BASE_SPEED = 420;
+const SPEED_PER_LEVEL = 10;
+const SPAWN_BASE = 1.05;
+const SPAWN_REDUCTION_PER_TIER = 0.05;
+
+/* ===== STATE & STORAGE ===== */
+let progress = loadProgress();
+let currentLevel = progress.unlockedLevel || 1;
+let selectedChar = progress.selectedChar || 0;
+
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+canvas.width = CANVAS_W; canvas.height = CANVAS_H;
+
+let running = false, paused = false, levelState = null, lastTime = 0;
+
+/* UI refs */
+const levelInfo = document.getElementById('levelInfo');
+const sideLevel = document.getElementById('sideLevel');
+const sideProgress = document.getElementById('sideProgress');
+const charsDiv = document.getElementById('chars');
+
+const mobilePad = document.getElementById('mobilePad');
+const mobileModeToggle = document.getElementById('mobileModeToggle');
+const mobileModeBtn = document.getElementById('mobileModeBtn');
+const canvasFullBtn = document.getElementById('canvasFullBtn');
+
+const btnLeft = document.getElementById('btnLeft');
+const btnRight = document.getElementById('btnRight');
+const btnFly = document.getElementById('btnFly');
+const btnCrouch = document.getElementById('btnCrouch');
+
+/* Characters */
+const CHAR_PRESETS = [
+  {name:'Sam', skin:'#c28b6a', hair:'#2b1f1f', shirt:'#ff5c6c', cape:'#b3002d'},
+  {name:'Maya', skin:'#b57a50', hair:'#1b1b1b', shirt:'#60e0b3', cape:'#006b3c'},
+  {name:'Rin', skin:'#a86944', hair:'#111', shirt:'#6fd3ff', cape:'#004f7f'},
+  {name:'Talia', skin:'#8f5b3a', hair:'#3b2a2a', shirt:'#ffb3e0', cape:'#7a1656'},
+  {name:'Jo', skin:'#b37a4f', hair:'#241515', shirt:'#ffd86b', cape:'#8c5a00'},
+  {name:'Kai', skin:'#996643', hair:'#1e1e1e', shirt:'#6bffcf', cape:'#00664f'},
+  {name:'Noa', skin:'#8c5c3a', hair:'#2b2121', shirt:'#79a1ff', cape:'#28408f'},
+  {name:'Ari', skin:'#ac7b52', hair:'#241a18', shirt:'#ffd1a6', cape:'#a64d00'},
+  {name:'Lea', skin:'#975b3b', hair:'#1f1515', shirt:'#bf8cff', cape:'#4b1f73'},
+  {name:'Zoe', skin:'#ad6f44', hair:'#211818', shirt:'#70d084', cape:'#11663f'}
+];
+if (!progress.unlockedChars) progress.unlockedChars = [0];
+if (progress.unlockedChars.indexOf(0) === -1) progress.unlockedChars.unshift(0);
+buildChars();
+
+/* ===== Utilities ===== */
+function randRange(a,b){ return a + Math.random()*(b-a); }
+function shade(hex,pct){ const f=parseInt(hex.slice(1),16), t=pct<0?0:255, p=Math.abs(pct)/100; const R=f>>16, G=(f>>8)&0xFF, B=f&0xFF; const nr=Math.round((t-R)*p)+R, ng=Math.round((t-G)*p)+G, nb=Math.round((t-B)*p)+B; return `rgb(${nr},${ng},${nb})`; }
+function roundRect(ctx,x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+/* ===== Projection: world -> screen ===== */
+function project(worldX, z){
+  const scale = PERSPECTIVE_SCALE / (PERSPECTIVE_SCALE + z);
+  const centerX = CANVAS_W / 2;
+  const lanePx = 340;
+  const sx = centerX + worldX * lanePx * scale;
+  const horizonY = 88;
+  const groundY = CANVAS_H - 120;
+  const sy = horizonY + (groundY - horizonY) * scale;
+  return { x: sx, y: sy, scale };
+}
+function overlap(a,b){ return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y; }
+
+/* ===== Obstacle generation with variety guard =====
+   - keep short memory (lastDeadly array) to avoid large runs of same deadly pos
+   - deadly positions: 'fly','neutral','crouch'
+*/
+const DEADLYS = ['fly','neutral','crouch'];
+let lastDeadly = []; // small history
+
+function pickDeadly(){
+  // propose a random deadly
+  let attempts = 0;
+  while (attempts < 8){
+    attempts++;
+    const candidate = DEADLYS[Math.floor(Math.random()*DEADLYS.length)];
+    // avoid repeating if last two equal candidate
+    const last1 = lastDeadly[lastDeadly.length-1];
+    const last2 = lastDeadly[lastDeadly.length-2];
+    if (last1 === candidate && last2 === candidate) continue;
+    // otherwise accept with some probability slightly lower if candidate recently used twice
+    lastDeadly.push(candidate);
+    if (lastDeadly.length > 6) lastDeadly.shift();
+    return candidate;
+  }
+  // fallback
+  const fallback = DEADLYS[Math.floor(Math.random()*DEADLYS.length)];
+  lastDeadly.push(fallback);
+  if (lastDeadly.length > 6) lastDeadly.shift();
+  return fallback;
+}
+
+function spawnObstacle(state){
+  const tier = state.tier;
+  const z = randRange(SPAWN_Z_MIN, SPAWN_Z_MAX);
+  const r = Math.random();
+
+  // pick deadly position with variety guard
+  const deadly = pickDeadly();
+
+  // choose a type consistent with deadly
+  if (deadly === 'fly'){
+    const lane = Math.floor(Math.random()*3);
+    const typ = r < 0.5 ? 'bird' : 'drone';
+    if (typ === 'bird') state.obstacles.push({ type:'bird', deadlyPos:'fly', lane, z, w:64, h:32, color:'#333', worldX: (Math.random()*0.6-0.3), targetWorldX: LANE_WORLD_X[lane], hit:false });
+    else state.obstacles.push({ type:'drone', deadlyPos:'fly', lane, z, w:48, h:24, color:'#2b2b2b', worldX:(Math.random()*0.6-0.3), targetWorldX: LANE_WORLD_X[lane], hit:false });
+    return;
+  }
+
+  if (deadly === 'neutral'){
+    const lane = Math.floor(Math.random()*3);
+    const typ = Math.random() < 0.6 ? 'car' : 'bus';
+    if (typ === 'car') state.obstacles.push({ type:'car', deadlyPos:'neutral', lane, z, w:120, h:60, color:'#3b5', worldX:(Math.random()*0.6-0.3), targetWorldX: LANE_WORLD_X[lane], hit:false });
+    else state.obstacles.push({ type:'bus', deadlyPos:'neutral', lane, z, w:240, h:100, color:'#4a4a6b', worldX:(Math.random()*0.6-0.3), targetWorldX: LANE_WORLD_X[lane], hit:false });
+    return;
+  }
+
+  if (deadly === 'crouch'){
+    const lane = Math.floor(Math.random()*3);
+    const typ = Math.random() < 0.6 ? 'barrier' : (Math.random() < 0.5 ? 'cone' : 'trashCan');
+    const spec = typ === 'barrier' ? {w:140,h:40,color:'#c73'} : typ==='cone' ? {w:36,h:36,color:'#ff7a28'} : {w:38,h:56,color:'#6b5'};
+    state.obstacles.push({ type:typ, deadlyPos:'crouch', lane, z, w:spec.w, h:spec.h, color:spec.color, worldX:(Math.random()*0.6-0.3), targetWorldX: LANE_WORLD_X[lane], hit:false });
+    return;
+  }
+}
+
+/* Flyers (mostly fly deadly) */
+function spawnFlyer(state){
+  if (Math.random() > 0.46) return;
+  const z = randRange(SPAWN_Z_MIN*0.9, SPAWN_Z_MAX);
+  const lane = Math.floor(Math.random()*3);
+  const laneX = LANE_WORLD_X[lane];
+  state.flyers.push({
+    type: 'flyer', deadlyPos: 'fly', lane, z, w:48, h:22, color:'#222',
+    laneX, baseY:110 + Math.random()*90, amp:8 + Math.random()*12, phase:Math.random()*Math.PI*2, speedOffset:50 + Math.random()*60,
+    worldX: laneX + (Math.random()*0.6-0.3), hit:false
+  });
+}
+
+/* Coins (optional) */
+function spawnCoins(state, z, laneIndex){
+  const cnt = 2 + Math.floor(Math.random()*3);
+  for (let i=0;i<cnt;i++){
+    const offset = i*26;
+    const lane = (laneIndex === null || laneIndex === undefined) ? (Math.random()*2-1) : LANE_WORLD_X[Math.max(0,Math.min(LANE_WORLD_X.length-1,laneIndex))];
+    state.coins.push({ z: z - offset, laneX: lane, collected:false });
+  }
+}
+
+/* ===== Level creation — LENGTH DOUBLED ===== */
+function createLevel(levelNum){
+  const tier = Math.floor((levelNum-1)/10);
+  const speed = BASE_SPEED + SPEED_PER_LEVEL*(levelNum-1) + tier*30;
+  const spawnInterval = Math.max(SPAWN_BASE - tier*SPAWN_REDUCTION_PER_TIER, 0.42);
+  return {
+    levelNum, tier, speed, spawnInterval,
+    obstacles: [], flyers: [], coins: [], spawnTimer: 0, time: 0,
+    distance: 0,
+    // levelDistance doubled to give longer runs (twice the previous length)
+    levelDistance: (2200 + levelNum*160) * 2,
+    collisions: 0,
+    player: {
+      lane: 1, worldX: LANE_WORLD_X[1], z: PLAYER_Z,
+      state: 'neutral', altitude: 0, flyTargetAlt: 80, flySpeed: 260,
+      width: 48, height: 96, char: CHAR_PRESETS[selectedChar] || CHAR_PRESETS[0]
+    }
+  };
+}
+
+/* ===== Start / Loop / Update ===== */
+function startLevel(levelNum){
+  currentLevel = levelNum;
+  levelState = createLevel(levelNum);
+  running = true; paused = false; lastTime = performance.now();
+  hideModal('endModal'); hideModal('levelsModal'); hideModal('helpModal');
+  requestAnimationFrame(loop);
+}
+
+function loop(ts){
+  if (!running || paused) return;
+  const dt = Math.min((ts - lastTime)/1000, 0.05);
+  lastTime = ts;
+  update(dt);
+  render();
+  requestAnimationFrame(loop);
+}
+
+function update(dt){
+  const s = levelState;
+  s.time += dt;
+  s.spawnTimer -= dt;
+  if (s.spawnTimer <= 0){
+    spawnObstacle(s);
+    spawnFlyer(s);
+    if (Math.random() < 0.3) spawnCoins(s, randRange(SPAWN_Z_MIN, SPAWN_Z_MAX), Math.floor(Math.random()*3));
+    s.spawnTimer = s.spawnInterval * (0.8 + Math.random()*0.9);
+  }
+  s.speed += s.tier * dt * 1.2;
+
+  for (let o of s.obstacles){
+    o.z -= s.speed * dt;
+    if (o.targetWorldX !== undefined){
+      const closeness = 1 - Math.min(1, o.z / SPAWN_Z_MAX);
+      const corr = 5 * closeness;
+      if (o.worldX === undefined) o.worldX = o.targetWorldX + (Math.random()*0.8 - 0.4);
+      o.worldX += (o.targetWorldX - o.worldX) * corr * dt;
+    }
+  }
+  s.obstacles = s.obstacles.filter(o => o.z > -80);
+
+  for (let f of s.flyers){
+    f.z -= (s.speed*
